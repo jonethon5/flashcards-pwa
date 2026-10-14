@@ -1,6 +1,6 @@
 // Service worker: guarda o app no aparelho para funcionar sem internet.
 // Ao mudar qualquer arquivo do app, aumente a versão para os aparelhos baixarem de novo.
-const VERSION = "v1";
+const VERSION = "v2";
 const CACHE = `flashcards-${VERSION}`;
 
 const FILES = [

@@ -189,17 +189,44 @@ async function resolveImages(root) {
   }
 }
 
-const SILENCE = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+// Um décimo de segundo de silêncio em WAV. Precisa ter amostras de verdade: o iPhone recusa tocar um arquivo vazio.
+function silentWav() {
+  const samples = 2205;
+  const view = new DataView(new ArrayBuffer(44 + samples * 2));
+  const text = (pos, value) => [...value].forEach((ch, k) => view.setUint8(pos + k, ch.charCodeAt(0)));
+  text(0, "RIFF");
+  view.setUint32(4, 36 + samples * 2, true);
+  text(8, "WAVEfmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, 22050, true);
+  view.setUint32(28, 44100, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  text(36, "data");
+  view.setUint32(40, samples * 2, true);
+  return URL.createObjectURL(new Blob([view.buffer], { type: "audio/wav" }));
+}
+
+const SILENCE = silentWav();
 const player = new Audio();
 let playToken = 0;
 let releasePlayback = null;
+let audioUnlocked = false;
 
-// O iOS só libera áudio depois de um toque; isto "destrava" o player dentro do toque.
+// O iOS só libera áudio depois de um toque, e só no elemento que tocou dentro desse toque.
+// No primeiro toque em qualquer lugar, o player toca o silêncio; depois disso pode tocar os cartões.
 function unlockAudio() {
+  if (audioUnlocked || !player.paused) return;
   player.src = SILENCE;
-  player.play().catch(() => {});
+  player
+    .play()
+    .then(() => (audioUnlocked = true))
+    .catch(() => {});
 }
 
+for (const type of ["touchend", "click", "keydown"]) document.addEventListener(type, unlockAudio, { capture: true, passive: true });
 function stopAudio() {
   playToken++;
   player.pause();
